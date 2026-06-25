@@ -1116,14 +1116,17 @@ async function finishConversationAndSearch() {
   window.clearTimeout(state.autonomy.conversationTimer);
   state.autonomy.conversationActive = false;
   els.robotFaceWrap.classList.remove("is-talking");
+  stopPlayback();
   setAutonomyState("Finding someone new...");
   await stopNow("conversation done").catch((error) => log(error.message));
   await driveBurst(COMMANDS.RIGHT, 1250, "turn 90");
-  state.autonomy.searchStep = 0;
-  if (state.autonomy.running && !state.autonomy.paused) {
-    setAutonomyState("Looking for people");
-    autonomyLoop().catch((error) => log(`autonomy: ${error.message}`));
-  }
+  // Wait for the rotation to fully complete before resuming search
+  window.setTimeout(() => {
+    if (state.autonomy.running && !state.autonomy.paused) {
+      state.autonomy.searchStep = 0;
+      setAutonomyState("Looking for people");
+    }
+  }, 1400);
 }
 
 function openControls() {
