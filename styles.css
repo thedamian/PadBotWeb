@@ -377,6 +377,12 @@ p {
   font-size: 1.1rem;
 }
 
+.persona-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .robot-persona.is-talking {
   outline: 2px solid #f2b84b;
   box-shadow: 0 0 20px rgba(242, 184, 75, 0.25);

@@ -36,12 +36,15 @@ const state = {
     playbackTime: 0,
     playbackSources: [],
     frameTimer: null,
+    overlayTimer: null,
     lastFrameHash: "",
     stillFrameCount: 0,
   },
   vision: {
     detector: null,
     detectorType: "none",
+    detecting: false,
+    lastDetectedFaces: [],
     lastFace: null,
     lastFaceAt: 0,
   },
@@ -104,6 +107,7 @@ const els = {
   visionOverlay: document.querySelector("#visionOverlay"),
   talkingMan: document.querySelector("#talkingMan"),
   robotPersona: document.querySelector(".robot-persona"),
+  startConversationButton: document.querySelector("#startConversationButton"),
   autonomyState: document.querySelector("#autonomyState"),
   transcript: document.querySelector("#transcriptText"),
   resumeAutonomy: document.querySelector("#resumeAutonomyButton"),
@@ -448,12 +452,24 @@ async function startMedia() {
   await initFaceDetector();
   await startMicrophoneStreaming();
   startVideoFrameStreaming();
+  startFaceOverlayLoop();
   log("Camera and microphone are live");
+}
+
+function startFaceOverlayLoop() {
+  window.clearInterval(state.media.overlayTimer);
+  state.media.overlayTimer = window.setInterval(async () => {
+    if (!state.media.cameraStream) return;
+    const faces = await detectFaces();
+    drawFaces(faces);
+  }, 400);
 }
 
 function stopMedia() {
   window.clearInterval(state.media.frameTimer);
   state.media.frameTimer = null;
+  window.clearInterval(state.media.overlayTimer);
+  state.media.overlayTimer = null;
   state.media.cameraStream?.getTracks().forEach((track) => track.stop());
   state.media.micStream?.getTracks().forEach((track) => track.stop());
   state.media.micProcessor?.disconnect();
@@ -514,33 +530,32 @@ async function initFaceDetector() {
 }
 
 async function detectFaces() {
+  if (state.vision.detecting) return state.vision.lastDetectedFaces;
   const video = els.cameraPreview;
-  if (!video.videoWidth || !video.videoHeight) return [];
-
-  if (state.vision.detectorType === "mediapipe") {
-    const result = state.vision.detector.detectForVideo(video, performance.now());
-    return (result.detections || []).map((detection) => {
-      const box = detection.boundingBox;
-      return {
-        x: box.originX,
-        y: box.originY,
-        width: box.width,
-        height: box.height,
-      };
-    });
+  if (!video.videoWidth || !video.videoHeight) return state.vision.lastDetectedFaces;
+  state.vision.detecting = true;
+  try {
+    let faces = [];
+    if (state.vision.detectorType === "mediapipe") {
+      const result = state.vision.detector.detectForVideo(video, performance.now());
+      faces = (result.detections || []).map((detection) => {
+        const box = detection.boundingBox;
+        return { x: box.originX, y: box.originY, width: box.width, height: box.height };
+      });
+    } else if (state.vision.detectorType === "native") {
+      const detected = await state.vision.detector.detect(video);
+      faces = detected.map((face) => ({
+        x: face.boundingBox.x,
+        y: face.boundingBox.y,
+        width: face.boundingBox.width,
+        height: face.boundingBox.height,
+      }));
+    }
+    state.vision.lastDetectedFaces = faces;
+    return faces;
+  } finally {
+    state.vision.detecting = false;
   }
-
-  if (state.vision.detectorType === "native") {
-    const faces = await state.vision.detector.detect(video);
-    return faces.map((face) => ({
-      x: face.boundingBox.x,
-      y: face.boundingBox.y,
-      width: face.boundingBox.width,
-      height: face.boundingBox.height,
-    }));
-  }
-
-  return [];
 }
 
 function drawFaces(faces) {
@@ -554,20 +569,45 @@ function drawFaces(faces) {
   const ctx = canvas.getContext("2d");
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
   ctx.clearRect(0, 0, rect.width, rect.height);
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = "#f2b84b";
-  ctx.fillStyle = "rgba(17, 19, 19, 0.68)";
   ctx.font = "13px system-ui";
+
+  const detLabel = `detector: ${state.vision.detectorType}`;
+  const detLabelW = ctx.measureText(detLabel).width + 14;
+  ctx.fillStyle = "rgba(17,19,19,0.75)";
+  ctx.fillRect(4, 4, detLabelW, 22);
+  ctx.fillStyle = state.vision.detectorType === "fallback" || state.vision.detectorType === "none" ? "#f24b4b" : "#8db8f2";
+  ctx.fillText(detLabel, 10, 20);
+
+  if (faces.length === 0) {
+    const msg = "no faces detected";
+    const msgW = ctx.measureText(msg).width + 14;
+    ctx.fillStyle = "rgba(17,19,19,0.75)";
+    ctx.fillRect(4, 30, msgW, 22);
+    ctx.fillStyle = "#aaaaaa";
+    ctx.fillText(msg, 10, 46);
+  }
+
   faces.forEach((face) => {
     const x = face.x * scaleX;
     const y = face.y * scaleY;
-    const width = face.width * scaleX;
-    const height = face.height * scaleY;
-    ctx.strokeRect(x, y, width, height);
-    ctx.fillRect(x, Math.max(0, y - 24), 82, 22);
-    ctx.fillStyle = "#f5f7fb";
-    ctx.fillText("person", x + 8, Math.max(16, y - 8));
-    ctx.fillStyle = "rgba(17, 19, 19, 0.68)";
+    const w = face.width * scaleX;
+    const h = face.height * scaleY;
+    const areaRatio = (face.width * face.height) / ((video.videoWidth || 1) * (video.videoHeight || 1));
+    const isClose = areaRatio >= 0.05;
+    const label = isClose
+      ? "CLOSE — ready to talk"
+      : `too far  ${(areaRatio * 100).toFixed(1)}% / need 5%`;
+
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = isClose ? "#4bf24b" : "#f2b84b";
+    ctx.strokeRect(x, y, w, h);
+
+    const labelW = ctx.measureText(label).width + 14;
+    const labelY = Math.max(0, y - 24);
+    ctx.fillStyle = "rgba(17,19,19,0.75)";
+    ctx.fillRect(x, labelY, labelW, 22);
+    ctx.fillStyle = isClose ? "#4bf24b" : "#f5f7fb";
+    ctx.fillText(label, x + 7, Math.max(16, y - 8));
   });
 }
 
@@ -921,8 +961,7 @@ async function autonomyLoop() {
   if (!state.autonomy.running || state.autonomy.paused || state.autonomy.conversationActive || state.speaking) return;
   if (!state.connected || !state.media.cameraStream) return;
 
-  const faces = await detectFaces();
-  drawFaces(faces);
+  const faces = state.vision.lastDetectedFaces;
   const face = getPrimaryFace(faces);
   if (face) {
     state.vision.lastFace = face;
@@ -1123,6 +1162,12 @@ els.closeControls.addEventListener("click", closeControls);
 els.resumeAutonomy.addEventListener("click", () => {
   closeControls();
   resumeAutonomy();
+});
+
+els.startConversationButton.addEventListener("click", () => {
+  if (state.autonomy.conversationActive) return;
+  stopNow("manual conversation").catch((error) => log(error.message));
+  startConversation();
 });
 
 els.saveSettings.addEventListener("click", () => {
