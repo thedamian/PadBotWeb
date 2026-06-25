@@ -1,5 +1,5 @@
 {
-  "name": "PadBot Drive",
+  "name": "PadBot Social Robot",
   "short_name": "PadBot",
   "start_url": "./index.html",
   "display": "standalone",
@@ -14,4 +14,3 @@
     }
   ]
 }
-
