@@ -733,26 +733,28 @@ async function connectLive() {
   closeLive();
   const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${encodeURIComponent(state.gemini.apiKey)}`;
   state.gemini.ready = false;
-  setAutonomyState("Connecting Gemini");
 
   await new Promise((resolve, reject) => {
     const socket = new WebSocket(url);
     state.gemini.socket = socket;
     const timeout = window.setTimeout(() => reject(new Error("Gemini Live connection timed out")), 12000);
+    let resolved = false;
 
     socket.onopen = () => {
       socket.send(
         JSON.stringify({
           setup: {
             model: `models/${state.gemini.model}`,
-            responseModalities: ["AUDIO"],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: {
-                  voiceName: state.gemini.voice,
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: {
+                    voiceName: state.gemini.voice,
+                  },
                 },
+                languageCode: "en-US",
               },
-              languageCode: "en-US",
             },
             systemInstruction: {
               parts: [{ text: ROBOT_SYSTEM_PROMPT }],
@@ -771,20 +773,34 @@ async function connectLive() {
           },
         }),
       );
-      window.clearTimeout(timeout);
-      state.gemini.ready = true;
-      log(`Gemini Live connected: ${state.gemini.model} / ${state.gemini.voice}`);
-      resolve();
     };
 
-    socket.onmessage = handleLiveMessage;
+    socket.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.setupComplete && !resolved) {
+        resolved = true;
+        window.clearTimeout(timeout);
+        state.gemini.ready = true;
+        log(`Gemini Live ready: ${state.gemini.model} / ${state.gemini.voice}`);
+        resolve();
+        return;
+      }
+      handleLiveMessage(event);
+    };
+
     socket.onerror = () => {
       window.clearTimeout(timeout);
-      reject(new Error("Gemini Live WebSocket error"));
+      if (!resolved) reject(new Error("Gemini Live WebSocket error"));
     };
+
     socket.onclose = () => {
       state.gemini.ready = false;
-      log("Gemini Live closed");
+      log("Gemini Live closed — reconnecting in 4s");
+      window.setTimeout(() => {
+        if (state.gemini.apiKey) {
+          connectLive().catch((err) => log(`Gemini reconnect failed: ${err.message}`));
+        }
+      }, 4000);
     };
   });
 }
@@ -800,10 +816,6 @@ function closeLive() {
 
 function handleLiveMessage(event) {
   const response = JSON.parse(event.data);
-  if (response.setupComplete) {
-    log("Gemini Live setup complete");
-  }
-
   const serverContent = response.serverContent;
   if (serverContent?.interrupted) {
     stopPlayback();
@@ -824,19 +836,22 @@ function handleLiveMessage(event) {
   const parts = serverContent?.modelTurn?.parts || [];
   parts.forEach((part) => {
     if (part.inlineData?.data) {
-      playPcmAudio(part.inlineData.data);
+      const mimeType = part.inlineData.mimeType || "audio/pcm;rate=24000";
+      const rateMatch = mimeType.match(/rate=(\d+)/);
+      const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+      playPcmAudio(part.inlineData.data, sampleRate);
     }
   });
 }
 
-function playPcmAudio(base64Audio) {
+function playPcmAudio(base64Audio, sampleRate = 24000) {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) return;
   state.media.audioContext = state.media.audioContext || new AudioContextClass();
   const audioContext = state.media.audioContext;
   const buffer = base64ToArrayBuffer(base64Audio);
   const samples = new Int16Array(buffer);
-  const audioBuffer = audioContext.createBuffer(1, samples.length, 24000);
+  const audioBuffer = audioContext.createBuffer(1, samples.length, sampleRate);
   const channel = audioBuffer.getChannelData(0);
   for (let i = 0; i < samples.length; i += 1) {
     channel[i] = samples[i] / 32768;
@@ -1035,19 +1050,31 @@ async function checkIfStuck() {
   }
 }
 
-function startConversation() {
+async function startConversation() {
   if (state.autonomy.conversationActive) return;
   state.autonomy.conversationActive = true;
   setAutonomyState("Talking now");
   els.robotPersona.classList.add("is-talking");
-  const opener = "Hey. I'm a very smart little robot. What are you talking about?";
-  setTranscript(opener);
+  setTranscript("…");
+
+  if (!state.gemini.ready) {
+    log("Gemini not ready — reconnecting before conversation");
+    try {
+      await connectLive();
+    } catch (error) {
+      log(`Gemini reconnect failed: ${error.message}`);
+      state.autonomy.conversationActive = false;
+      els.robotPersona.classList.remove("is-talking");
+      setAutonomyState("Gemini offline");
+      return;
+    }
+  }
 
   try {
     sendLiveText("BEGIN_APPROACH_CONVERSATION");
+    log("Conversation started");
   } catch (error) {
-    log(`Gemini fallback: ${error.message}`);
-    fallbackSpeak(opener);
+    log(`sendLiveText failed: ${error.message}`);
   }
 
   window.clearTimeout(state.autonomy.conversationTimer);
