@@ -9,9 +9,10 @@ The project started by inspecting the installed macOS/iOS-wrapper app at `/Appli
 - Connects to a PadBot-compatible BLE device from Chrome or Edge.
 - Starts with the observed BLE service `0xfff0`.
 - Auto-discovers a writable characteristic when possible.
-- Provides drive buttons for forward, backward, left, right, diagonals, stop, head up/down, dock/undock, battery, infrared, and info.
+- Provides drive buttons for forward, backward, left, right, diagonals, stop, and head up/down.
+- Keeps battery, infrared, info, dock, and undock in a compact settings menu.
 - Sends raw native movement/head tokens such as `X1`, with speed configured separately through `W`, `E`, or `D`.
-- Includes protocol modes for raw commands and the observed wrapped formats `m...n` and `p...q`; Auto sends all three.
+- Uses automatic protocol framing for raw commands and the observed wrapped formats `m...n` and `p...q`.
 - Uses the PadBot command map refined against a PA6208 physical test.
 - Installs as a PWA and works from `localhost` with a service worker.
 
@@ -50,4 +51,4 @@ Key findings:
 
 ## Current Status
 
-This is a practical browser implementation based on static analysis of the installed app. A physical robot test is still needed to confirm the exact movement token mapping for every button and to choose the right protocol framing for a specific robot firmware.
+This is a practical browser implementation based on static analysis of the installed app and PA6208 testing. The app now defaults to automatic framing because the exact firmware framing can vary by robot.

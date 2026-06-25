@@ -1,4 +1,4 @@
-const APP_VERSION = "v7-speed-map";
+const APP_VERSION = "v8-clean-ui";
 
 const state = {
   device: null,
@@ -22,6 +22,8 @@ const COMMANDS = {
 const els = {
   connect: document.querySelector("#connectButton"),
   disconnect: document.querySelector("#disconnectButton"),
+  settingsToggle: document.querySelector("#settingsToggle"),
+  settingsMenu: document.querySelector("#settingsMenu"),
   status: document.querySelector("#statusText"),
   deviceName: document.querySelector("#deviceName"),
   serviceState: document.querySelector("#serviceState"),
@@ -30,8 +32,6 @@ const els = {
   writeUuid: document.querySelector("#writeUuid"),
   notifyUuid: document.querySelector("#notifyUuid"),
   protocolMode: document.querySelector("#protocolMode"),
-  customForm: document.querySelector("#customCommandForm"),
-  customInput: document.querySelector("#customCommand"),
   log: document.querySelector("#logList"),
 };
 
@@ -304,10 +304,17 @@ els.disconnect.addEventListener("click", () => {
   disconnect().catch((error) => log(error.message));
 });
 
-els.customForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const command = els.customInput.value.trim();
-  if (command) sendCommand(command, { label: "custom" }).catch((error) => log(error.message));
+els.settingsToggle.addEventListener("click", () => {
+  const shouldOpen = els.settingsMenu.hidden;
+  els.settingsMenu.hidden = !shouldOpen;
+  els.settingsToggle.setAttribute("aria-expanded", String(shouldOpen));
+});
+
+document.addEventListener("click", (event) => {
+  if (els.settingsMenu.hidden) return;
+  if (event.target.closest("#settingsMenu, #settingsToggle")) return;
+  els.settingsMenu.hidden = true;
+  els.settingsToggle.setAttribute("aria-expanded", "false");
 });
 
 window.addEventListener("keydown", (event) => {

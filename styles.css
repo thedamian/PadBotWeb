@@ -101,14 +101,11 @@ p {
 
 .connection-actions,
 .head-controls,
-.utility-grid,
-.segmented {
+.utility-grid {
   display: flex;
   gap: 10px;
 }
 
-.primary,
-.ghost,
 .utility-button,
 .speed-button {
   min-height: 42px;
@@ -117,21 +114,36 @@ p {
   background: var(--button);
 }
 
-.primary {
-  background: var(--accent);
-  color: #061512;
-  font-weight: 700;
+.icon-button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--button);
 }
 
-.ghost {
-  border: 1px solid var(--line);
-  background: transparent;
+.icon-button svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.primary-action {
+  background: var(--accent);
+  color: #061512;
 }
 
 .control-layout {
   display: grid;
-  grid-template-columns: 260px minmax(360px, 1fr) 280px;
-  gap: 18px;
+  grid-template-columns: minmax(360px, 1fr) 320px;
+  gap: 22px;
   padding-top: 22px;
   align-items: start;
 }
@@ -169,10 +181,21 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-.settings-panel,
 .command-panel {
   display: grid;
   gap: 14px;
+}
+
+.settings-menu {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.settings-menu[hidden] {
+  display: none;
 }
 
 .segmented {
@@ -198,7 +221,6 @@ button:focus-visible {
 .telemetry {
   display: grid;
   gap: 10px;
-  margin-top: 4px;
 }
 
 .telemetry div {
@@ -225,7 +247,8 @@ button:focus-visible {
 .drive-surface {
   display: grid;
   justify-items: center;
-  gap: 18px;
+  gap: 14px;
+  padding-top: 6px;
 }
 
 .head-controls {
@@ -243,6 +266,10 @@ button:focus-visible {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+.speed-strip {
+  width: min(420px, 100%);
 }
 
 .pad-button,
@@ -275,20 +302,13 @@ button:focus-visible {
 }
 
 .utility-grid {
-  width: min(560px, 100%);
+  width: 100%;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
 }
 
 .utility-button {
   padding: 0 8px;
-}
-
-.custom-command {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  align-items: end;
 }
 
 .log-wrap {
@@ -318,7 +338,8 @@ button:focus-visible {
   }
 
   .command-panel {
-    order: 3;
+    width: min(560px, 100%);
+    justify-self: center;
   }
 
   .utility-grid {
@@ -333,14 +354,30 @@ button:focus-visible {
   }
 
   .topbar {
-    align-items: stretch;
-    flex-direction: column;
+    gap: 10px;
     padding-bottom: 14px;
   }
 
+  .brand {
+    gap: 10px;
+  }
+
+  .brand-mark {
+    display: none;
+  }
+
+  h1 {
+    font-size: 1.05rem;
+  }
+
   .connection-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    flex: 0 0 auto;
+    gap: 7px;
+  }
+
+  .icon-button {
+    width: 40px;
+    height: 40px;
   }
 
   .dpad {

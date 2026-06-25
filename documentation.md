@@ -33,7 +33,7 @@ The app also uses Agora/Hyphenate/WebRTC-style libraries for video, chat, and re
 
 The binary contains the BLE service token `0xFFF0`. The app scans nearby peripherals, identifies candidates, discovers services and characteristics, then stores the discovered service/write/notify/read UUIDs on the selected `RobotVo`.
 
-The web app in this folder starts with service `0xfff0` and can also fall back to name filters like `PadBot`. Because the native app stores discovered characteristic UUIDs rather than relying only on hard-coded strings, the PWA discovers characteristics and chooses a writable one automatically. Manual service/write/notify UUID fields are available when a robot variant needs them.
+The web app in this folder starts with service `0xfff0` and can also fall back to name filters like `PadBot`. Because the native app stores discovered characteristic UUIDs rather than relying only on hard-coded strings, the PWA discovers characteristics and chooses writable/notify characteristics automatically.
 
 ## Write format
 
@@ -47,7 +47,7 @@ It also contains firmware-dependent framing formats:
 - Frame A: `mCOMMANDn`
 - Frame B: `pCOMMANDq`
 
-The disassembly shows wrapping selected around robot-version ranges `1802-1899` (`mCOMMANDn`) and `1902-1999` (`pCOMMANDq`). Because the exact robot in front of the browser may vary, the PWA exposes a protocol selector. `Auto` sends raw plus both framed variants for each command.
+The disassembly shows wrapping selected around robot-version ranges `1802-1899` (`mCOMMANDn`) and `1902-1999` (`pCOMMANDq`). Because the exact robot in front of the browser may vary, the PWA uses automatic framing and sends raw plus both framed variants for each command.
 
 ## Observed command tokens
 
@@ -85,7 +85,7 @@ The binary also contains motion tokens and labels. The PWA currently uses this p
 
 Additional extracted labels include `forward left 10/20/30/40`, `forward right 10/20/30/40`, `backwrad left 10/20/30/40`, and `backwrad right 10/20/30/40`, with related tokens in the `XF` through `XU` range.
 
-The PWA maps the basic drive controls to the observed `X*` family and keeps a custom command field for validation and variants. It logs all discovered characteristics and, unless a write characteristic UUID is entered manually, writes commands to every writable characteristic under the selected service to handle PadBot variants whose motor characteristic is not the first writable characteristic returned by Web Bluetooth.
+The PWA maps the basic drive controls to the observed `X*` family. It logs all discovered characteristics and writes commands to every writable characteristic under the selected service to handle PadBot variants whose motor characteristic is not the first writable characteristic returned by Web Bluetooth.
 
 ## Can it drive different robots?
 
