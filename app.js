@@ -736,6 +736,7 @@ async function connectLive() {
 
   await new Promise((resolve, reject) => {
     const socket = new WebSocket(url);
+    socket.binaryType = "arraybuffer";
     state.gemini.socket = socket;
     const timeout = window.setTimeout(() => reject(new Error("Gemini Live connection timed out")), 12000);
     let resolved = false;
@@ -776,7 +777,8 @@ async function connectLive() {
     };
 
     socket.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
+      const raw = event.data instanceof ArrayBuffer ? new TextDecoder().decode(event.data) : event.data;
+      const msg = JSON.parse(raw);
       if (msg.setupComplete && !resolved) {
         resolved = true;
         window.clearTimeout(timeout);
@@ -815,7 +817,8 @@ function closeLive() {
 }
 
 function handleLiveMessage(event) {
-  const response = JSON.parse(event.data);
+  const raw = event.data instanceof ArrayBuffer ? new TextDecoder().decode(event.data) : event.data;
+  const response = JSON.parse(raw);
   const serverContent = response.serverContent;
   if (serverContent?.interrupted) {
     stopPlayback();
