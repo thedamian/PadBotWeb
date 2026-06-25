@@ -86,6 +86,9 @@ const els = {
   settingsToggle: document.querySelector("#settingsToggle"),
   settingsMenu: document.querySelector("#settingsMenu"),
   closeControls: document.querySelector("#closeControlsButton"),
+  logToggle: document.querySelector("#logToggle"),
+  logModal: document.querySelector("#logModal"),
+  closeLog: document.querySelector("#closeLogButton"),
   status: document.querySelector("#statusText"),
   deviceName: document.querySelector("#deviceName"),
   serviceState: document.querySelector("#serviceState"),
@@ -102,11 +105,12 @@ const els = {
   settingsApiKey: document.querySelector("#settingsApiKey"),
   settingsVoice: document.querySelector("#settingsVoice"),
   saveSettings: document.querySelector("#saveSettingsButton"),
-  cameraStage: document.querySelector(".camera-stage"),
+  cameraPip: document.querySelector("#cameraPip"),
   cameraPreview: document.querySelector("#cameraPreview"),
   visionOverlay: document.querySelector("#visionOverlay"),
-  talkingMan: document.querySelector("#talkingMan"),
-  robotPersona: document.querySelector(".robot-persona"),
+  robotEyes: document.querySelector("#robotEyes"),
+  robotMouth: document.querySelector("#robotMouth"),
+  robotFaceWrap: document.querySelector("#robotFaceWrap"),
   startConversationButton: document.querySelector("#startConversationButton"),
   autonomyState: document.querySelector("#autonomyState"),
   transcript: document.querySelector("#transcriptText"),
@@ -447,7 +451,7 @@ async function startMedia() {
   });
   state.media.micStream = new MediaStream(state.media.cameraStream.getAudioTracks());
   els.cameraPreview.srcObject = state.media.cameraStream;
-  els.cameraStage.classList.add("has-video");
+  els.cameraPip.classList.add("has-video");
   await els.cameraPreview.play();
   await initFaceDetector();
   await startMicrophoneStreaming();
@@ -481,7 +485,7 @@ function stopMedia() {
   state.media.micSource = null;
   state.media.silentGain = null;
   els.cameraPreview.srcObject = null;
-  els.cameraStage.classList.remove("has-video");
+  els.cameraPip.classList.remove("has-video");
 }
 
 function loadScript(src) {
@@ -889,7 +893,30 @@ function stopPlayback() {
 
 function setSpeaking(speaking) {
   state.speaking = speaking;
-  els.talkingMan.classList.toggle("speaking", speaking);
+  els.robotMouth.src = speaking
+    ? "./assets/Robot_Mouth_Open.png"
+    : "./assets/Robot_Mouth_closed.png";
+}
+
+function startBlinkLoop() {
+  let blinking = false;
+  function scheduleBlink() {
+    const delay = 2500 + Math.random() * 3500;
+    window.setTimeout(() => {
+      if (!blinking) {
+        blinking = true;
+        els.robotEyes.src = "./assets/Robot_eyes_squint.png";
+        window.setTimeout(() => {
+          els.robotEyes.src = "./assets/Robot_Eyes_open.png";
+          blinking = false;
+          scheduleBlink();
+        }, 140);
+      } else {
+        scheduleBlink();
+      }
+    }, delay);
+  }
+  scheduleBlink();
 }
 
 function sendLiveText(text) {
@@ -947,7 +974,7 @@ function pauseAutonomy(reason = "Paused") {
 function resumeAutonomy() {
   state.autonomy.paused = false;
   state.autonomy.conversationActive = false;
-  els.robotPersona.classList.remove("is-talking");
+  els.robotFaceWrap.classList.remove("is-talking");
   setAutonomyState("Looking for people");
   if (!state.autonomy.running && state.connected) startAutonomy();
   log("Autonomy resumed");
@@ -1057,7 +1084,7 @@ async function startConversation() {
   if (state.autonomy.conversationActive) return;
   state.autonomy.conversationActive = true;
   setAutonomyState("Talking now");
-  els.robotPersona.classList.add("is-talking");
+  els.robotFaceWrap.classList.add("is-talking");
   setTranscript("…");
 
   if (!state.gemini.ready) {
@@ -1067,7 +1094,7 @@ async function startConversation() {
     } catch (error) {
       log(`Gemini reconnect failed: ${error.message}`);
       state.autonomy.conversationActive = false;
-      els.robotPersona.classList.remove("is-talking");
+      els.robotFaceWrap.classList.remove("is-talking");
       setAutonomyState("Gemini offline");
       return;
     }
@@ -1088,7 +1115,7 @@ async function finishConversationAndSearch() {
   if (!state.autonomy.conversationActive) return;
   window.clearTimeout(state.autonomy.conversationTimer);
   state.autonomy.conversationActive = false;
-  els.robotPersona.classList.remove("is-talking");
+  els.robotFaceWrap.classList.remove("is-talking");
   setAutonomyState("Finding someone new...");
   await stopNow("conversation done").catch((error) => log(error.message));
   await driveBurst(COMMANDS.RIGHT, 1250, "turn 90");
@@ -1164,6 +1191,21 @@ els.disconnect.addEventListener("click", () => {
   disconnect().catch((error) => log(error.message));
 });
 
+els.logToggle.addEventListener("click", () => {
+  els.logModal.hidden = false;
+  els.logToggle.setAttribute("aria-expanded", "true");
+});
+els.closeLog.addEventListener("click", () => {
+  els.logModal.hidden = true;
+  els.logToggle.setAttribute("aria-expanded", "false");
+});
+els.logModal.addEventListener("click", (e) => {
+  if (e.target === els.logModal) {
+    els.logModal.hidden = true;
+    els.logToggle.setAttribute("aria-expanded", "false");
+  }
+});
+
 els.settingsToggle.addEventListener("click", openControls);
 els.closeControls.addEventListener("click", closeControls);
 
@@ -1221,6 +1263,7 @@ if ("serviceWorker" in navigator) {
 
 setConnectedUi(false);
 log(`Ready ${APP_VERSION}`);
+startBlinkLoop();
 
 if (loadGeminiConfig()) {
   startAppFlow().catch((error) => log(error.message));

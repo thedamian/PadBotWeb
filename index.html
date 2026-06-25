@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#141824" />
-    <title>PadBot Social Robot</title>
+    <title>Your Superior Bot</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -16,11 +16,17 @@
             <span></span>
           </div>
           <div>
-            <h1>PadBot Social Robot</h1>
+            <h1>Your Superior Bot</h1>
             <p id="statusText">Disconnected</p>
           </div>
         </div>
         <div class="connection-actions">
+          <button id="logToggle" class="icon-button" aria-label="View log" title="View log" aria-expanded="false" aria-controls="logModal">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <polyline points="4 17 10 11 4 5" />
+              <line x1="12" y1="19" x2="20" y2="19" />
+            </svg>
+          </button>
           <button id="connectButton" class="icon-button primary-action" aria-label="Connect" title="Connect">
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path d="M9 7V3" />
@@ -54,40 +60,48 @@
       <input id="writeUuid" type="hidden" value="" />
       <input id="notifyUuid" type="hidden" value="" />
 
-      <section class="robot-stage" aria-label="Autonomous robot view">
-        <section class="camera-stage">
-          <video id="cameraPreview" autoplay muted playsinline></video>
-          <canvas id="visionOverlay" aria-hidden="true"></canvas>
-          <div class="camera-empty" id="cameraEmpty">Camera waiting for permission</div>
-        </section>
-
-        <aside class="robot-persona" aria-label="Robot voice">
-          <div id="talkingMan" class="talking-man" aria-hidden="true">
-            <div class="hair"></div>
-            <div class="face">
-              <span class="brow left"></span>
-              <span class="brow right"></span>
-              <span class="eye left"></span>
-              <span class="eye right"></span>
-              <span class="nose"></span>
-              <span class="mustache"></span>
-              <span class="mouth"></span>
-            </div>
-            <div class="shirt"></div>
-          </div>
-          <div class="persona-copy">
+      <section class="robot-stage" aria-label="Robot">
+        <div class="robot-face-wrap" id="robotFaceWrap">
+          <img class="robot-base" src="./assets/Robot_Face.png" alt="Robot face" draggable="false" />
+          <img class="robot-eyes" id="robotEyes" src="./assets/Robot_Eyes_open.png" alt="" draggable="false" />
+          <img class="robot-mouth" id="robotMouth" src="./assets/Robot_Mouth_closed.png" alt="" draggable="false" />
+        </div>
+        <div class="robot-hud">
+          <div class="hud-state">
             <div class="label">Autonomy</div>
             <strong id="autonomyState">Waiting</strong>
-            <p id="transcriptText">Hey. I'm a very smart little robot. What are you talking about?</p>
           </div>
+          <p id="transcriptText">Hey. I'm a very smart little robot. What are you talking about?</p>
           <div class="persona-buttons">
             <button id="resumeAutonomyButton" class="primary-button">Ok now start</button>
             <button id="startConversationButton" class="utility-button">Talk Now</button>
           </div>
-        </aside>
+        </div>
       </section>
+    </main>
 
-      <aside class="panel command-panel" aria-label="Command log">
+    <!-- Camera PiP -->
+    <div class="camera-pip" id="cameraPip">
+      <video id="cameraPreview" autoplay muted playsinline></video>
+      <canvas id="visionOverlay" aria-hidden="true"></canvas>
+      <div class="camera-empty" id="cameraEmpty">Camera waiting</div>
+    </div>
+
+    <!-- Log modal -->
+    <section id="logModal" class="modal-backdrop" aria-label="Device log" hidden>
+      <div class="log-modal" role="dialog" aria-modal="true" aria-labelledby="logTitle">
+        <div class="modal-header">
+          <div>
+            <h2 id="logTitle">Device Log</h2>
+            <p>Connection status and command history.</p>
+          </div>
+          <button id="closeLogButton" class="icon-button" aria-label="Close log" title="Close log">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
         <div class="telemetry">
           <div>
             <span>Device</span>
@@ -102,13 +116,12 @@
             <strong id="writeState">-</strong>
           </div>
         </div>
-
         <div class="log-wrap">
           <div class="log-title">Log</div>
           <ol id="logList"></ol>
         </div>
-      </aside>
-    </main>
+      </div>
+    </section>
 
     <section id="settingsMenu" class="modal-backdrop" aria-label="Robot controls" hidden>
       <div class="control-modal" role="dialog" aria-modal="true" aria-labelledby="controlTitle">
