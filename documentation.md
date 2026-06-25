@@ -60,9 +60,9 @@ These command strings were extracted from the robot-control methods and CFString
 | `&` | Query infrared/obstacle state |
 | `0` | Stop |
 | `]` | Speed/robot setup command used by speed initialization |
-| `W` | Speed low |
+| `W` | Speed fast on PA6208 |
 | `E` | Speed middle |
-| `D` | Speed fast |
+| `D` | Speed low on PA6208 |
 | `<` | Begin auto charge |
 | `>` | End auto charge |
 | `X5` | Head up |

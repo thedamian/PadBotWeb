@@ -1,9 +1,9 @@
-const CACHE_NAME = "padbot-drive-v6";
+const CACHE_NAME = "padbot-drive-v7";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js?v=6",
+  "./app.js?v=7",
   "./manifest.webmanifest",
   "./padbot-icon.svg",
 ];

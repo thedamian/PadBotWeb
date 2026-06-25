@@ -1,4 +1,4 @@
-const APP_VERSION = "v6-drive-map";
+const APP_VERSION = "v7-speed-map";
 
 const state = {
   device: null,
