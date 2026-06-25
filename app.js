@@ -499,7 +499,7 @@ async function initFaceDetector() {
   if (state.vision.detector) return;
   setAutonomyState("Loading face detector");
   try {
-    await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js");
+    await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js");
     await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.1.0/dist/blazeface.min.js");
     state.vision.detector = await window.blazeface.load();
     state.vision.detectorType = "blazeface";
@@ -548,23 +548,18 @@ function drawFaces(faces) {
   const ctx = canvas.getContext("2d");
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
   ctx.clearRect(0, 0, rect.width, rect.height);
-  ctx.font = "13px system-ui";
+  ctx.font = "bold 14px system-ui";
 
-  const detLabel = `detector: ${state.vision.detectorType}`;
-  const detLabelW = ctx.measureText(detLabel).width + 14;
-  ctx.fillStyle = "rgba(17,19,19,0.75)";
-  ctx.fillRect(4, 4, detLabelW, 22);
-  ctx.fillStyle = state.vision.detectorType === "fallback" || state.vision.detectorType === "none" ? "#f24b4b" : "#8db8f2";
-  ctx.fillText(detLabel, 10, 20);
-
-  if (faces.length === 0) {
-    const msg = "no faces detected";
-    const msgW = ctx.measureText(msg).width + 14;
-    ctx.fillStyle = "rgba(17,19,19,0.75)";
-    ctx.fillRect(4, 30, msgW, 22);
-    ctx.fillStyle = "#aaaaaa";
-    ctx.fillText(msg, 10, 46);
-  }
+  const isBroken = state.vision.detectorType === "fallback" || state.vision.detectorType === "none";
+  const faceCount = faces.length;
+  const detLabel = isBroken
+    ? `⚠ detector: ${state.vision.detectorType}`
+    : `faces: ${faceCount}  •  ${state.vision.detectorType}`;
+  const detLabelW = ctx.measureText(detLabel).width + 16;
+  ctx.fillStyle = "rgba(0,0,0,0.72)";
+  ctx.fillRect(6, 6, detLabelW, 26);
+  ctx.fillStyle = isBroken ? "#ff5f5f" : faceCount > 0 ? "#4bf24b" : "#8db8f2";
+  ctx.fillText(detLabel, 14, 24);
 
   faces.forEach((face) => {
     const x = face.x * scaleX;
@@ -573,20 +568,21 @@ function drawFaces(faces) {
     const h = face.height * scaleY;
     const areaRatio = (face.width * face.height) / ((video.videoWidth || 1) * (video.videoHeight || 1));
     const isClose = areaRatio >= 0.05;
-    const label = isClose
-      ? "CLOSE — ready to talk"
-      : `too far  ${(areaRatio * 100).toFixed(1)}% / need 5%`;
+    const color = isClose ? "#00ff44" : "#ffcc00";
+    const label = isClose ? "CLOSE — ready to talk" : `area ${(areaRatio * 100).toFixed(1)}% (need 5%)`;
 
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = isClose ? "#4bf24b" : "#f2b84b";
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = color;
     ctx.strokeRect(x, y, w, h);
+    ctx.shadowBlur = 0;
 
     const labelW = ctx.measureText(label).width + 14;
-    const labelY = Math.max(0, y - 24);
-    ctx.fillStyle = "rgba(17,19,19,0.75)";
-    ctx.fillRect(x, labelY, labelW, 22);
-    ctx.fillStyle = isClose ? "#4bf24b" : "#f5f7fb";
-    ctx.fillText(label, x + 7, Math.max(16, y - 8));
+    ctx.fillStyle = "rgba(0,0,0,0.80)";
+    ctx.fillRect(x, Math.max(0, y - 28), labelW, 24);
+    ctx.fillStyle = color;
+    ctx.fillText(label, x + 7, Math.max(18, y - 10));
   });
 }
 
