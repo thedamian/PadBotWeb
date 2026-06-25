@@ -484,75 +484,54 @@ function stopMedia() {
   els.cameraStage.classList.remove("has-video");
 }
 
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error(`Script load failed: ${src}`));
+    document.head.appendChild(s);
+  });
+}
+
 async function initFaceDetector() {
   if (state.vision.detector) return;
-
-  let mediaPipe = null;
+  setAutonomyState("Loading face detector");
   try {
-    mediaPipe = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22");
-  } catch (error) {
-    log(`MediaPipe import failed: ${error.message}`);
-  }
-
-  if (mediaPipe) {
-    for (const delegate of ["GPU", "CPU"]) {
-      try {
-        const vision = await mediaPipe.FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm",
-        );
-        state.vision.detector = await mediaPipe.FaceDetector.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite",
-            delegate,
-          },
-          runningMode: "VIDEO",
-          minDetectionConfidence: 0.3,
-        });
-        state.vision.detectorType = "mediapipe";
-        log(`Face detector ready (${delegate})`);
-        return;
-      } catch (error) {
-        log(`MediaPipe (${delegate}) failed: ${error.message}`);
-      }
-    }
-  }
-
-  if ("FaceDetector" in window) {
-    state.vision.detector = new window.FaceDetector({ fastMode: true, maxDetectedFaces: 4 });
-    state.vision.detectorType = "native";
-    log("Native face detector ready");
+    await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js");
+    await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.1.0/dist/blazeface.min.js");
+    state.vision.detector = await window.blazeface.load();
+    state.vision.detectorType = "blazeface";
+    log("BlazeFace face detector ready");
     return;
+  } catch (error) {
+    log(`BlazeFace failed: ${error.message}`);
   }
 
   state.vision.detectorType = "fallback";
-  log("Using simple motion fallback; face detection is not available");
+  log("Face detection unavailable");
 }
 
 async function detectFaces() {
   if (state.vision.detecting) return state.vision.lastDetectedFaces;
+  if (state.vision.detectorType !== "blazeface") return state.vision.lastDetectedFaces;
   const video = els.cameraPreview;
   if (!video.videoWidth || !video.videoHeight) return state.vision.lastDetectedFaces;
   state.vision.detecting = true;
   try {
-    let faces = [];
-    if (state.vision.detectorType === "mediapipe") {
-      const result = state.vision.detector.detectForVideo(video, performance.now());
-      faces = (result.detections || []).map((detection) => {
-        const box = detection.boundingBox;
-        return { x: box.originX, y: box.originY, width: box.width, height: box.height };
-      });
-    } else if (state.vision.detectorType === "native") {
-      const detected = await state.vision.detector.detect(video);
-      faces = detected.map((face) => ({
-        x: face.boundingBox.x,
-        y: face.boundingBox.y,
-        width: face.boundingBox.width,
-        height: face.boundingBox.height,
-      }));
-    }
+    const predictions = await state.vision.detector.estimateFaces(video, false);
+    const faces = predictions.map((p) => ({
+      x: p.topLeft[0],
+      y: p.topLeft[1],
+      width: p.bottomRight[0] - p.topLeft[0],
+      height: p.bottomRight[1] - p.topLeft[1],
+    }));
     state.vision.lastDetectedFaces = faces;
     return faces;
+  } catch (error) {
+    log(`detectFaces error: ${error.message}`);
+    return state.vision.lastDetectedFaces;
   } finally {
     state.vision.detecting = false;
   }
