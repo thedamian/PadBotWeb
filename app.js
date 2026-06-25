@@ -3,9 +3,11 @@ const state = {
   server: null,
   service: null,
   writeCharacteristic: null,
+  writableCharacteristics: [],
   notifyCharacteristic: null,
   connected: false,
   holdTimer: null,
+  lastPointerDriveAt: 0,
   lastCommand: null,
   speed: 2,
 };
@@ -13,46 +15,6 @@ const state = {
 const COMMANDS = {
   STOP: "0",
 };
-
-const SPEED_PREFIXED_COMMANDS = new Set([
-  "XB",
-  "XC",
-  "X",
-  ";",
-  "V",
-  "[",
-  "+",
-  "-",
-  "(",
-  ")",
-  ",",
-  "X1",
-  "X2",
-  "X3",
-  "X4",
-  "X5",
-  "X6",
-  "X7",
-  "X8",
-  "X9",
-  "XA",
-  "XF",
-  "XG",
-  "XH",
-  "XI",
-  "XJ",
-  "XK",
-  "XL",
-  "XM",
-  "XN",
-  "XO",
-  "XP",
-  "XQ",
-  "XR",
-  "XS",
-  "XT",
-  "XU",
-]);
 
 const els = {
   connect: document.querySelector("#connectButton"),
@@ -95,7 +57,9 @@ function setConnectedUi(connected) {
   els.disconnect.disabled = !connected;
   els.deviceName.textContent = state.device?.name || "Unknown";
   els.serviceState.textContent = state.service ? "Ready" : "-";
-  els.writeState.textContent = state.writeCharacteristic ? "Ready" : "-";
+  els.writeState.textContent = state.writableCharacteristics.length
+    ? `${state.writableCharacteristics.length} writable`
+    : "-";
 }
 
 function getWriteType(characteristic) {
@@ -103,12 +67,17 @@ function getWriteType(characteristic) {
   return "write";
 }
 
+function describeProperties(characteristic) {
+  const props = characteristic.properties;
+  const names = ["read", "write", "writeWithoutResponse", "notify", "indicate"];
+  return names.filter((name) => props[name]).join(",") || "none";
+}
+
 function frameCommand(command) {
   const mode = els.protocolMode.value;
-  const payload = SPEED_PREFIXED_COMMANDS.has(command) ? `${state.speed}${command}` : command;
-  if (mode === "mn") return `m${payload}n`;
-  if (mode === "pq") return `p${payload}q`;
-  return payload;
+  if (mode === "mn") return `m${command}n`;
+  if (mode === "pq") return `p${command}q`;
+  return command;
 }
 
 async function connect() {
@@ -139,9 +108,10 @@ async function connect() {
   state.service = await state.server.getPrimaryService(serviceUuid);
 
   const characteristics = await state.service.getCharacteristics();
-  state.writeCharacteristic = writeUuid
-    ? await state.service.getCharacteristic(writeUuid)
-    : characteristics.find((item) => item.properties.writeWithoutResponse || item.properties.write);
+  state.writableCharacteristics = writeUuid
+    ? [await state.service.getCharacteristic(writeUuid)]
+    : characteristics.filter((item) => item.properties.writeWithoutResponse || item.properties.write);
+  state.writeCharacteristic = state.writableCharacteristics[0] || null;
 
   state.notifyCharacteristic = null;
   if (notifyUuid) {
@@ -162,6 +132,13 @@ async function connect() {
   setConnectedUi(true);
   setStatus("Connected");
   log(`Connected to ${state.device.name || "PadBot"}`);
+  characteristics.forEach((item) => log(`char ${item.uuid}: ${describeProperties(item)}`));
+  log(`write target ${state.writableCharacteristics.map((item) => item.uuid).join(", ")}`);
+
+  const activeSpeedCommand = document.querySelector(".speed-button.active")?.dataset.command;
+  if (activeSpeedCommand) {
+    await sendCommand(activeSpeedCommand, { label: "speed init" });
+  }
 
   if (els.protocolMode.value === "auto") {
     await sendCommand(":", { stopAfter: false, label: "info probe" });
@@ -179,6 +156,7 @@ function onDisconnected() {
   state.server = null;
   state.service = null;
   state.writeCharacteristic = null;
+  state.writableCharacteristics = [];
   state.notifyCharacteristic = null;
   setConnectedUi(false);
   setStatus("Disconnected");
@@ -195,23 +173,38 @@ async function disconnect() {
 }
 
 async function sendCommand(command, options = {}) {
-  if (!state.writeCharacteristic) {
+  const targets = state.writableCharacteristics.length ? state.writableCharacteristics : [state.writeCharacteristic].filter(Boolean);
+  if (!targets.length) {
     log(`not connected: ${command}`);
     return;
   }
 
   const framed = frameCommand(command);
   const data = new TextEncoder().encode(framed);
-  if (state.writeCharacteristic.properties.writeWithoutResponse && state.writeCharacteristic.writeValueWithoutResponse) {
-    await state.writeCharacteristic.writeValueWithoutResponse(data);
-  } else if (state.writeCharacteristic.writeValueWithResponse) {
-    await state.writeCharacteristic.writeValueWithResponse(data);
-  } else {
-    await state.writeCharacteristic.writeValue(data);
+  const written = [];
+  const failures = [];
+  for (const characteristic of targets) {
+    try {
+      if (characteristic.properties.writeWithoutResponse && characteristic.writeValueWithoutResponse) {
+        await characteristic.writeValueWithoutResponse(data);
+      } else if (characteristic.writeValueWithResponse) {
+        await characteristic.writeValueWithResponse(data);
+      } else {
+        await characteristic.writeValue(data);
+      }
+      written.push(`${characteristic.uuid} ${getWriteType(characteristic)}`);
+    } catch (error) {
+      failures.push(`${characteristic.uuid}: ${error.message}`);
+    }
+  }
+
+  if (!written.length) {
+    throw new Error(`write failed: ${failures.join("; ")}`);
   }
 
   state.lastCommand = command;
-  log(`${options.label || "sent"} ${framed} via ${getWriteType(state.writeCharacteristic)}`);
+  log(`${options.label || "sent"} ${framed} via ${written.join(", ")}`);
+  failures.forEach((failure) => log(`write skipped ${failure}`));
 
   if (options.stopAfter) {
     window.setTimeout(() => sendCommand(COMMANDS.STOP, { label: "auto stop" }), options.stopAfter);
@@ -244,6 +237,7 @@ document.addEventListener("pointerdown", (event) => {
   if (button.dataset.hold === "true") {
     event.preventDefault();
     button.setPointerCapture?.(event.pointerId);
+    state.lastPointerDriveAt = Date.now();
     startHold(button).catch((error) => log(error.message));
   }
 });
@@ -261,8 +255,13 @@ document.addEventListener("pointercancel", () => {
 
 document.addEventListener("click", (event) => {
   const button = event.target.closest("[data-command]");
-  if (!button || button.dataset.hold === "true") return;
+  if (!button) return;
   const command = button.dataset.command;
+  if (button.dataset.hold === "true") {
+    if (Date.now() - state.lastPointerDriveAt < 700) return;
+    sendCommand(command, { label: "tap drive", stopAfter: 300 }).catch((error) => log(error.message));
+    return;
+  }
   if (button.classList.contains("speed-button")) {
     document.querySelectorAll(".speed-button").forEach((item) => item.classList.remove("active"));
     button.classList.add("active");

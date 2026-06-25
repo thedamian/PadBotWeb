@@ -39,7 +39,7 @@ The web app in this folder starts with service `0xfff0` and can also fall back t
 
 The native `BluetoothService writeValue:characteristicUUID:data:` method takes an NSString robot command, UTF-8 encodes it, and writes it to the BLE characteristic.
 
-Robot movement commands are sent by `sendRobotOrder:` using a speed-prefixed format. The native string format is equivalent to `%d%@`, so a medium-speed forward command is sent as `2X1`, not bare `X1`. The PWA mirrors this for the movement/head token family and leaves query/setup commands such as `?`, `&`, `:`, `W`, `E`, `D`, and `0` unprefixed.
+Robot movement commands are buffered by `sendRobotOrder:` and then `executeRobotOrder` writes the buffered string as-is to BLE. Speed is configured separately with the observed speed/setup commands (`W`, `E`, `D`, and `]`), not by prefixing movement tokens. A previous browser attempt sent `2X1`; that does not match the native direct-BLE path. The PWA now sends raw motion tokens such as `X1` and sends the selected speed command separately on connect or speed-button taps.
 
 It also contains firmware-dependent framing formats:
 
@@ -74,7 +74,7 @@ The binary also contains motion tokens and labels:
 - Labels: `backwrad`, `backwrad left 10/20/30/40`, `backwrad right 10/20/30/40`
 - Tokens: `X1`, `X2`, `X3`, `X4`, `X6`, `X7`, `X8`, `X9`, `XF` through `XU`
 
-The PWA maps the basic drive controls to the observed `X*` family and keeps a custom command field for validation and variants.
+The PWA maps the basic drive controls to the observed `X*` family and keeps a custom command field for validation and variants. It logs all discovered characteristics and, unless a write characteristic UUID is entered manually, writes commands to every writable characteristic under the selected service to handle PadBot variants whose motor characteristic is not the first writable characteristic returned by Web Bluetooth.
 
 ## Can it drive different robots?
 
