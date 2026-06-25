@@ -12,6 +12,7 @@ The project started by inspecting the installed macOS/iOS-wrapper app at `/Appli
 - Provides drive buttons for forward, backward, left, right, diagonals, stop, head up/down, dock/undock, battery, infrared, and info.
 - Sends raw native movement/head tokens such as `X1`, with speed configured separately through `W`, `E`, or `D`.
 - Includes protocol modes for raw commands and the observed wrapped formats `m...n` and `p...q`; Auto sends all three.
+- Uses the PadBot command map refined against a PA6208 physical test.
 - Installs as a PWA and works from `localhost` with a service worker.
 
 ## Running Locally

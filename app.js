@@ -1,4 +1,4 @@
-const APP_VERSION = "v5-auto-frames";
+const APP_VERSION = "v6-drive-map";
 
 const state = {
   device: null,
@@ -9,7 +9,6 @@ const state = {
   notifyCharacteristic: null,
   connected: false,
   holdTimer: null,
-  lastPointerDriveAt: 0,
   lastCommand: null,
   lastNotifyText: "",
   lastNotifyCount: 0,
@@ -243,7 +242,14 @@ async function startHold(button) {
 async function stopHold() {
   const hadHold = Boolean(state.holdTimer);
   clearHold();
-  if (hadHold) await sendCommand(COMMANDS.STOP, { label: "stop" });
+  if (hadHold) await stopNow("stop");
+}
+
+async function stopNow(label = "stop") {
+  clearHold();
+  await sendCommand(COMMANDS.STOP, { label });
+  window.setTimeout(() => sendCommand(COMMANDS.STOP, { label: `${label} repeat` }).catch((error) => log(error.message)), 90);
+  window.setTimeout(() => sendCommand(COMMANDS.STOP, { label: `${label} repeat` }).catch((error) => log(error.message)), 180);
 }
 
 document.addEventListener("pointerdown", (event) => {
@@ -252,7 +258,6 @@ document.addEventListener("pointerdown", (event) => {
   if (button.dataset.hold === "true") {
     event.preventDefault();
     button.setPointerCapture?.(event.pointerId);
-    state.lastPointerDriveAt = Date.now();
     startHold(button).catch((error) => log(error.message));
   }
 });
@@ -273,8 +278,6 @@ document.addEventListener("click", (event) => {
   if (!button) return;
   const command = button.dataset.command;
   if (button.dataset.hold === "true") {
-    if (Date.now() - state.lastPointerDriveAt < 700) return;
-    sendCommand(command, { label: "tap drive", stopAfter: 300 }).catch((error) => log(error.message));
     return;
   }
   if (button.classList.contains("speed-button")) {
@@ -282,7 +285,11 @@ document.addEventListener("click", (event) => {
     button.classList.add("active");
     state.speed = Number(button.dataset.speed || state.speed);
   }
-  sendCommand(command, { label: "sent", stopAfter: command === COMMANDS.STOP ? 0 : undefined }).catch((error) => log(error.message));
+  if (command === COMMANDS.STOP) {
+    stopNow("stop").catch((error) => log(error.message));
+    return;
+  }
+  sendCommand(command, { label: "sent" }).catch((error) => log(error.message));
 });
 
 els.connect.addEventListener("click", () => {
@@ -306,20 +313,24 @@ els.customForm.addEventListener("submit", (event) => {
 window.addEventListener("keydown", (event) => {
   const map = {
     ArrowUp: "X1",
-    ArrowDown: "X6",
-    ArrowLeft: "XF",
-    ArrowRight: "XG",
+    ArrowDown: "X4",
+    ArrowLeft: "X6",
+    ArrowRight: "X7",
     " ": "0",
   };
   if (!map[event.key] || event.repeat) return;
   event.preventDefault();
+  if (map[event.key] === COMMANDS.STOP) {
+    stopNow("key stop").catch((error) => log(error.message));
+    return;
+  }
   sendCommand(map[event.key], { label: "key" }).catch((error) => log(error.message));
 });
 
 window.addEventListener("keyup", (event) => {
   if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
     event.preventDefault();
-    sendCommand("0", { label: "key stop" }).catch((error) => log(error.message));
+    stopNow("key stop").catch((error) => log(error.message));
   }
 });
 

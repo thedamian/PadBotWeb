@@ -68,11 +68,22 @@ These command strings were extracted from the robot-control methods and CFString
 | `X5` | Head up |
 | `XA` | Head down |
 
-The binary also contains motion tokens and labels:
+The binary also contains motion tokens and labels. The PWA currently uses this practical mapping:
 
-- Labels: `forward`, `forward left 10/20/30/40`, `forward right 10/20/30/40`
-- Labels: `backwrad`, `backwrad left 10/20/30/40`, `backwrad right 10/20/30/40`
-- Tokens: `X1`, `X2`, `X3`, `X4`, `X6`, `X7`, `X8`, `X9`, `XF` through `XU`
+| Control | Command |
+| --- | --- |
+| Forward | `X1` |
+| Forward left | `XG` |
+| Forward right | `XK` |
+| Left turn | `X6` |
+| Right turn | `X7` |
+| Backward | `X4` |
+| Back left | `XO` |
+| Back right | `XS` |
+| Head up | `X5` |
+| Head down | `XA` |
+
+Additional extracted labels include `forward left 10/20/30/40`, `forward right 10/20/30/40`, `backwrad left 10/20/30/40`, and `backwrad right 10/20/30/40`, with related tokens in the `XF` through `XU` range.
 
 The PWA maps the basic drive controls to the observed `X*` family and keeps a custom command field for validation and variants. It logs all discovered characteristics and, unless a write characteristic UUID is entered manually, writes commands to every writable characteristic under the selected service to handle PadBot variants whose motor characteristic is not the first writable characteristic returned by Web Bluetooth.
 
