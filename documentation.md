@@ -39,6 +39,8 @@ The web app in this folder starts with service `0xfff0` and can also fall back t
 
 The native `BluetoothService writeValue:characteristicUUID:data:` method takes an NSString robot command, UTF-8 encodes it, and writes it to the BLE characteristic.
 
+Robot movement commands are sent by `sendRobotOrder:` using a speed-prefixed format. The native string format is equivalent to `%d%@`, so a medium-speed forward command is sent as `2X1`, not bare `X1`. The PWA mirrors this for the movement/head token family and leaves query/setup commands such as `?`, `&`, `:`, `W`, `E`, `D`, and `0` unprefixed.
+
 It also contains firmware-dependent framing formats:
 
 - Raw: `COMMAND`
@@ -83,4 +85,3 @@ The PWA should drive different PadBot robots if they expose the same BLE service
 ## Browser constraints
 
 Web Bluetooth requires a secure context: HTTPS or `localhost`. It works best in Chrome/Edge. Safari support is not generally available. The app must be served from a local server, not opened as a plain `file://` page.
-

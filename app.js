@@ -7,11 +7,52 @@ const state = {
   connected: false,
   holdTimer: null,
   lastCommand: null,
+  speed: 2,
 };
 
 const COMMANDS = {
   STOP: "0",
 };
+
+const SPEED_PREFIXED_COMMANDS = new Set([
+  "XB",
+  "XC",
+  "X",
+  ";",
+  "V",
+  "[",
+  "+",
+  "-",
+  "(",
+  ")",
+  ",",
+  "X1",
+  "X2",
+  "X3",
+  "X4",
+  "X5",
+  "X6",
+  "X7",
+  "X8",
+  "X9",
+  "XA",
+  "XF",
+  "XG",
+  "XH",
+  "XI",
+  "XJ",
+  "XK",
+  "XL",
+  "XM",
+  "XN",
+  "XO",
+  "XP",
+  "XQ",
+  "XR",
+  "XS",
+  "XT",
+  "XU",
+]);
 
 const els = {
   connect: document.querySelector("#connectButton"),
@@ -64,9 +105,10 @@ function getWriteType(characteristic) {
 
 function frameCommand(command) {
   const mode = els.protocolMode.value;
-  if (mode === "mn") return `m${command}n`;
-  if (mode === "pq") return `p${command}q`;
-  return command;
+  const payload = SPEED_PREFIXED_COMMANDS.has(command) ? `${state.speed}${command}` : command;
+  if (mode === "mn") return `m${payload}n`;
+  if (mode === "pq") return `p${payload}q`;
+  return payload;
 }
 
 async function connect() {
@@ -224,6 +266,7 @@ document.addEventListener("click", (event) => {
   if (button.classList.contains("speed-button")) {
     document.querySelectorAll(".speed-button").forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
+    state.speed = Number(button.dataset.speed || state.speed);
   }
   sendCommand(command, { label: "sent", stopAfter: command === COMMANDS.STOP ? 0 : undefined }).catch((error) => log(error.message));
 });
