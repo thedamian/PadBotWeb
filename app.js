@@ -1,9 +1,9 @@
 const APP_VERSION = "v9-social-robot";
 const GEMINI_MODEL = "gemini-3.1-flash-live-preview";
-const DEFAULT_VOICE = "Charon";
+const DEFAULT_VOICE = "Algenib";
 const CONFIG_KEYS = {
   apiKey: "padbot.gemini.apiKey",
-  voice: "padbot.gemini.voice",
+  voice: "padbot.gemini.voice.v2",
 };
 
 const state = {
