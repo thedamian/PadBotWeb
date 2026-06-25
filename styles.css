@@ -377,6 +377,16 @@ p {
   font-size: 1.1rem;
 }
 
+.robot-persona.is-talking {
+  outline: 2px solid #f2b84b;
+  box-shadow: 0 0 20px rgba(242, 184, 75, 0.25);
+}
+
+.robot-persona.is-talking #autonomyState {
+  color: #f2b84b;
+  font-size: 1.4rem;
+}
+
 #transcriptText {
   min-height: 4.5rem;
   line-height: 1.45;

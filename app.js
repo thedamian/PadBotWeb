@@ -103,6 +103,7 @@ const els = {
   cameraPreview: document.querySelector("#cameraPreview"),
   visionOverlay: document.querySelector("#visionOverlay"),
   talkingMan: document.querySelector("#talkingMan"),
+  robotPersona: document.querySelector(".robot-persona"),
   autonomyState: document.querySelector("#autonomyState"),
   transcript: document.querySelector("#transcriptText"),
   resumeAutonomy: document.querySelector("#resumeAutonomyButton"),
@@ -470,25 +471,35 @@ function stopMedia() {
 async function initFaceDetector() {
   if (state.vision.detector) return;
 
+  let mediaPipe = null;
   try {
-    const mediaPipe = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22");
-    const vision = await mediaPipe.FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm",
-    );
-    state.vision.detector = await mediaPipe.FaceDetector.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath:
-          "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite",
-        delegate: "GPU",
-      },
-      runningMode: "VIDEO",
-      minDetectionConfidence: 0.55,
-    });
-    state.vision.detectorType = "mediapipe";
-    log("Face detector ready");
-    return;
+    mediaPipe = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22");
   } catch (error) {
-    log(`MediaPipe face detector unavailable: ${error.message}`);
+    log(`MediaPipe import failed: ${error.message}`);
+  }
+
+  if (mediaPipe) {
+    for (const delegate of ["GPU", "CPU"]) {
+      try {
+        const vision = await mediaPipe.FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm",
+        );
+        state.vision.detector = await mediaPipe.FaceDetector.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath:
+              "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite",
+            delegate,
+          },
+          runningMode: "VIDEO",
+          minDetectionConfidence: 0.3,
+        });
+        state.vision.detectorType = "mediapipe";
+        log(`Face detector ready (${delegate})`);
+        return;
+      } catch (error) {
+        log(`MediaPipe (${delegate}) failed: ${error.message}`);
+      }
+    }
   }
 
   if ("FaceDetector" in window) {
@@ -900,6 +911,7 @@ function pauseAutonomy(reason = "Paused") {
 function resumeAutonomy() {
   state.autonomy.paused = false;
   state.autonomy.conversationActive = false;
+  els.robotPersona.classList.remove("is-talking");
   setAutonomyState("Looking for people");
   if (!state.autonomy.running && state.connected) startAutonomy();
   log("Autonomy resumed");
@@ -927,29 +939,29 @@ async function approachFace(face) {
   const video = els.cameraPreview;
   const centerX = face.x + face.width / 2;
   const faceWidthRatio = face.width / video.videoWidth;
-  const faceHeightRatio = face.height / video.videoHeight;
+  const faceAreaRatio = (face.width * face.height) / (video.videoWidth * video.videoHeight);
   const offset = centerX / video.videoWidth - 0.5;
 
-  if (Math.abs(offset) > 0.16) {
-    setAutonomyState(offset < 0 ? "Turning left" : "Turning right");
-    await driveBurst(offset < 0 ? COMMANDS.LEFT : COMMANDS.RIGHT, 360, "face align");
-    return;
-  }
-
-  if (faceWidthRatio < 0.25 || faceHeightRatio < 0.32) {
-    setAutonomyState("Approaching");
-    await driveBurst(COMMANDS.FORWARD, 520, "approach");
-    return;
-  }
-
-  if (faceWidthRatio > 0.58) {
-    setAutonomyState("Backing up");
+  if (faceWidthRatio > 0.55) {
+    setAutonomyState("Face close — backing up");
     await driveBurst(COMMANDS.BACKWARD, 320, "too close");
     return;
   }
 
-  await stopNow("arrived");
-  startConversation();
+  if (faceAreaRatio >= 0.05) {
+    await stopNow("arrived");
+    startConversation();
+    return;
+  }
+
+  if (Math.abs(offset) > 0.16) {
+    setAutonomyState(offset < 0 ? "Face left — turning" : "Face right — turning");
+    await driveBurst(offset < 0 ? COMMANDS.LEFT : COMMANDS.RIGHT, 360, "face align");
+    return;
+  }
+
+  setAutonomyState("Face spotted — approaching");
+  await driveBurst(COMMANDS.FORWARD, 520, "approach");
 }
 
 async function searchForPeople() {
@@ -1009,7 +1021,8 @@ async function checkIfStuck() {
 function startConversation() {
   if (state.autonomy.conversationActive) return;
   state.autonomy.conversationActive = true;
-  setAutonomyState("Talking");
+  setAutonomyState("Talking now");
+  els.robotPersona.classList.add("is-talking");
   const opener = "Hey. I'm a very smart little robot. What are you talking about?";
   setTranscript(opener);
 
@@ -1028,6 +1041,7 @@ async function finishConversationAndSearch() {
   if (!state.autonomy.conversationActive) return;
   window.clearTimeout(state.autonomy.conversationTimer);
   state.autonomy.conversationActive = false;
+  els.robotPersona.classList.remove("is-talking");
   setAutonomyState("Bored, rotating");
   await stopNow("conversation done").catch((error) => log(error.message));
   await driveBurst(COMMANDS.RIGHT, 1250, "turn 90");
