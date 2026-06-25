@@ -53,7 +53,7 @@ const state = {
     moving: false,
     lastMoveAt: 0,
     lastMoveCommand: null,
-    searchDirection: 1,
+    searchStep: 0,
     conversationActive: false,
     conversationTimer: null,
   },
@@ -875,7 +875,7 @@ function startAutonomy() {
   state.autonomy.paused = false;
   setAutonomyState("Looking for people");
   log("Autonomy started");
-  state.autonomy.loopTimer = window.setInterval(autonomyLoop, 900);
+  state.autonomy.loopTimer = window.setInterval(autonomyLoop, 1200);
   autonomyLoop().catch((error) => log(`autonomy: ${error.message}`));
 }
 
@@ -953,10 +953,39 @@ async function approachFace(face) {
 }
 
 async function searchForPeople() {
-  setAutonomyState("Looking around");
-  const turn = state.autonomy.searchDirection > 0 ? COMMANDS.RIGHT : COMMANDS.LEFT;
-  state.autonomy.searchDirection *= -1;
-  await driveBurst(turn, 620, "search");
+  const step = state.autonomy.searchStep;
+  state.autonomy.searchStep = (step + 1) % 8;
+
+  switch (step) {
+    case 0:
+      setAutonomyState("Looking left");
+      await driveBurst(COMMANDS.LEFT, 400, "scan left");
+      break;
+    case 1:
+      setAutonomyState("Looking for faces");
+      break;
+    case 2:
+      setAutonomyState("Looking right");
+      await driveBurst(COMMANDS.RIGHT, 820, "scan right");
+      break;
+    case 3:
+      setAutonomyState("Looking for faces");
+      break;
+    case 4:
+      setAutonomyState("Moving forward");
+      await driveBurst(COMMANDS.FORWARD, 700, "explore forward");
+      break;
+    case 5:
+      setAutonomyState("Looking for faces");
+      break;
+    case 6:
+      setAutonomyState("Looking left");
+      await driveBurst(COMMANDS.LEFT, 400, "scan left");
+      break;
+    case 7:
+      setAutonomyState("Looking for faces");
+      break;
+  }
 }
 
 async function checkIfStuck() {
@@ -972,7 +1001,7 @@ async function checkIfStuck() {
   if (state.media.stillFrameCount >= 2) {
     log("Camera view looks stuck; turning away");
     await stopNow("stuck stop");
-    await driveBurst(state.autonomy.searchDirection > 0 ? COMMANDS.LEFT : COMMANDS.RIGHT, 780, "stuck turn");
+    await driveBurst(state.autonomy.searchStep % 2 === 0 ? COMMANDS.LEFT : COMMANDS.RIGHT, 780, "stuck turn");
     state.media.stillFrameCount = 0;
   }
 }
