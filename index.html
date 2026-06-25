@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#141824" />
+    <title>PadBot Drive</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar" aria-label="Connection">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span>
+          </div>
+          <div>
+            <h1>PadBot Drive</h1>
+            <p id="statusText">Disconnected</p>
+          </div>
+        </div>
+        <div class="connection-actions">
+          <button id="connectButton" class="primary">Connect</button>
+          <button id="disconnectButton" class="ghost" disabled>Disconnect</button>
+        </div>
+      </section>
+
+      <section class="control-layout">
+        <aside class="panel settings-panel" aria-label="Robot setup">
+          <label>
+            Protocol
+            <select id="protocolMode">
+              <option value="auto">Auto</option>
+              <option value="raw">Raw</option>
+              <option value="mn">m...n</option>
+              <option value="pq">p...q</option>
+            </select>
+          </label>
+
+          <label>
+            Service UUID
+            <input id="serviceUuid" value="0xfff0" autocomplete="off" spellcheck="false" />
+          </label>
+
+          <label>
+            Write UUID
+            <input id="writeUuid" placeholder="Auto discover" autocomplete="off" spellcheck="false" />
+          </label>
+
+          <label>
+            Notify UUID
+            <input id="notifyUuid" placeholder="Auto discover" autocomplete="off" spellcheck="false" />
+          </label>
+
+          <div class="segmented" aria-label="Speed">
+            <button class="speed-button" data-command="W">Low</button>
+            <button class="speed-button active" data-command="E">Med</button>
+            <button class="speed-button" data-command="D">Fast</button>
+          </div>
+
+          <div class="telemetry">
+            <div>
+              <span>Device</span>
+              <strong id="deviceName">None</strong>
+            </div>
+            <div>
+              <span>Service</span>
+              <strong id="serviceState">-</strong>
+            </div>
+            <div>
+              <span>Write</span>
+              <strong id="writeState">-</strong>
+            </div>
+          </div>
+        </aside>
+
+        <section class="drive-surface" aria-label="Drive controls">
+          <div class="head-controls">
+            <button class="pad-button small" data-command="X5" data-hold="true" aria-label="Head up">Head Up</button>
+            <button class="pad-button small" data-command="XA" data-hold="true" aria-label="Head down">Head Down</button>
+          </div>
+
+          <div class="dpad" aria-label="Movement">
+            <button class="pad-button corner" data-command="X2" data-hold="true">Fwd Left</button>
+            <button class="pad-button main" data-command="X1" data-hold="true">Forward</button>
+            <button class="pad-button corner" data-command="X3" data-hold="true">Fwd Right</button>
+
+            <button class="pad-button main" data-command="XF" data-hold="true">Left</button>
+            <button class="stop-button" data-command="0">Stop</button>
+            <button class="pad-button main" data-command="XG" data-hold="true">Right</button>
+
+            <button class="pad-button corner" data-command="X7" data-hold="true">Back Left</button>
+            <button class="pad-button main" data-command="X6" data-hold="true">Backward</button>
+            <button class="pad-button corner" data-command="X8" data-hold="true">Back Right</button>
+          </div>
+
+          <div class="utility-grid">
+            <button class="utility-button" data-command="?">Battery</button>
+            <button class="utility-button" data-command="&">Infrared</button>
+            <button class="utility-button" data-command=":">Info</button>
+            <button class="utility-button" data-command="<">Dock</button>
+            <button class="utility-button" data-command=">">Undock</button>
+          </div>
+        </section>
+
+        <aside class="panel command-panel" aria-label="Command log">
+          <form id="customCommandForm" class="custom-command">
+            <label>
+              Custom command
+              <input id="customCommand" value="0" autocomplete="off" spellcheck="false" />
+            </label>
+            <button class="primary" type="submit">Send</button>
+          </form>
+
+          <div class="log-wrap">
+            <div class="log-title">Log</div>
+            <ol id="logList"></ol>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
+

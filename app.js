@@ -1,0 +1,274 @@
+const state = {
+  device: null,
+  server: null,
+  service: null,
+  writeCharacteristic: null,
+  notifyCharacteristic: null,
+  connected: false,
+  holdTimer: null,
+  lastCommand: null,
+};
+
+const COMMANDS = {
+  STOP: "0",
+};
+
+const els = {
+  connect: document.querySelector("#connectButton"),
+  disconnect: document.querySelector("#disconnectButton"),
+  status: document.querySelector("#statusText"),
+  deviceName: document.querySelector("#deviceName"),
+  serviceState: document.querySelector("#serviceState"),
+  writeState: document.querySelector("#writeState"),
+  serviceUuid: document.querySelector("#serviceUuid"),
+  writeUuid: document.querySelector("#writeUuid"),
+  notifyUuid: document.querySelector("#notifyUuid"),
+  protocolMode: document.querySelector("#protocolMode"),
+  customForm: document.querySelector("#customCommandForm"),
+  customInput: document.querySelector("#customCommand"),
+  log: document.querySelector("#logList"),
+};
+
+function log(message) {
+  const item = document.createElement("li");
+  item.textContent = `${new Date().toLocaleTimeString()} ${message}`;
+  els.log.prepend(item);
+  while (els.log.children.length > 80) els.log.lastChild.remove();
+}
+
+function setStatus(text) {
+  els.status.textContent = text;
+}
+
+function normalizeUuid(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^0x[0-9a-f]{4}$/i.test(trimmed)) return Number.parseInt(trimmed.slice(2), 16);
+  if (/^[0-9a-f]{4}$/i.test(trimmed)) return Number.parseInt(trimmed, 16);
+  return trimmed.toLowerCase();
+}
+
+function setConnectedUi(connected) {
+  state.connected = connected;
+  els.connect.disabled = connected;
+  els.disconnect.disabled = !connected;
+  els.deviceName.textContent = state.device?.name || "Unknown";
+  els.serviceState.textContent = state.service ? "Ready" : "-";
+  els.writeState.textContent = state.writeCharacteristic ? "Ready" : "-";
+}
+
+function getWriteType(characteristic) {
+  if (characteristic.properties.writeWithoutResponse) return "writeWithoutResponse";
+  return "write";
+}
+
+function frameCommand(command) {
+  const mode = els.protocolMode.value;
+  if (mode === "mn") return `m${command}n`;
+  if (mode === "pq") return `p${command}q`;
+  return command;
+}
+
+async function connect() {
+  if (!("bluetooth" in navigator)) {
+    setStatus("Web Bluetooth is not available in this browser");
+    log("Use Chrome or Edge on localhost/HTTPS.");
+    return;
+  }
+
+  const serviceUuid = normalizeUuid(els.serviceUuid.value || "0xfff0");
+  const writeUuid = normalizeUuid(els.writeUuid.value);
+  const notifyUuid = normalizeUuid(els.notifyUuid.value);
+  const optionalServices = [serviceUuid].filter(Boolean);
+
+  setStatus("Scanning...");
+  const filters = serviceUuid
+    ? [{ services: [serviceUuid] }, { namePrefix: "PadBot" }, { namePrefix: "padbot" }]
+    : [{ namePrefix: "PadBot" }, { namePrefix: "padbot" }];
+
+  state.device = await navigator.bluetooth.requestDevice({
+    filters,
+    optionalServices,
+  });
+
+  state.device.addEventListener("gattserverdisconnected", onDisconnected);
+  setStatus("Connecting...");
+  state.server = await state.device.gatt.connect();
+  state.service = await state.server.getPrimaryService(serviceUuid);
+
+  const characteristics = await state.service.getCharacteristics();
+  state.writeCharacteristic = writeUuid
+    ? await state.service.getCharacteristic(writeUuid)
+    : characteristics.find((item) => item.properties.writeWithoutResponse || item.properties.write);
+
+  state.notifyCharacteristic = null;
+  if (notifyUuid) {
+    state.notifyCharacteristic = await state.service.getCharacteristic(notifyUuid);
+  } else {
+    state.notifyCharacteristic = characteristics.find((item) => item.properties.notify || item.properties.indicate);
+  }
+
+  if (!state.writeCharacteristic) {
+    throw new Error("No writable BLE characteristic was found.");
+  }
+
+  if (state.notifyCharacteristic) {
+    await state.notifyCharacteristic.startNotifications();
+    state.notifyCharacteristic.addEventListener("characteristicvaluechanged", onNotification);
+  }
+
+  setConnectedUi(true);
+  setStatus("Connected");
+  log(`Connected to ${state.device.name || "PadBot"}`);
+
+  if (els.protocolMode.value === "auto") {
+    await sendCommand(":", { stopAfter: false, label: "info probe" });
+  }
+}
+
+function onNotification(event) {
+  const bytes = new Uint8Array(event.target.value.buffer);
+  const text = new TextDecoder().decode(bytes);
+  log(`notify ${text || Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join(" ")}`);
+}
+
+function onDisconnected() {
+  clearHold();
+  state.server = null;
+  state.service = null;
+  state.writeCharacteristic = null;
+  state.notifyCharacteristic = null;
+  setConnectedUi(false);
+  setStatus("Disconnected");
+  log("Disconnected");
+}
+
+async function disconnect() {
+  clearHold();
+  if (state.device?.gatt?.connected) {
+    state.device.gatt.disconnect();
+  } else {
+    onDisconnected();
+  }
+}
+
+async function sendCommand(command, options = {}) {
+  if (!state.writeCharacteristic) {
+    log(`not connected: ${command}`);
+    return;
+  }
+
+  const framed = frameCommand(command);
+  const data = new TextEncoder().encode(framed);
+  if (state.writeCharacteristic.properties.writeWithoutResponse && state.writeCharacteristic.writeValueWithoutResponse) {
+    await state.writeCharacteristic.writeValueWithoutResponse(data);
+  } else if (state.writeCharacteristic.writeValueWithResponse) {
+    await state.writeCharacteristic.writeValueWithResponse(data);
+  } else {
+    await state.writeCharacteristic.writeValue(data);
+  }
+
+  state.lastCommand = command;
+  log(`${options.label || "sent"} ${framed} via ${getWriteType(state.writeCharacteristic)}`);
+
+  if (options.stopAfter) {
+    window.setTimeout(() => sendCommand(COMMANDS.STOP, { label: "auto stop" }), options.stopAfter);
+  }
+}
+
+function clearHold() {
+  if (state.holdTimer) window.clearInterval(state.holdTimer);
+  state.holdTimer = null;
+  document.querySelectorAll(".pad-button.active").forEach((button) => button.classList.remove("active"));
+}
+
+async function startHold(button) {
+  const command = button.dataset.command;
+  clearHold();
+  button.classList.add("active");
+  await sendCommand(command, { label: "drive" });
+  state.holdTimer = window.setInterval(() => sendCommand(command, { label: "drive" }), 220);
+}
+
+async function stopHold() {
+  const hadHold = Boolean(state.holdTimer);
+  clearHold();
+  if (hadHold) await sendCommand(COMMANDS.STOP, { label: "stop" });
+}
+
+document.addEventListener("pointerdown", (event) => {
+  const button = event.target.closest("[data-command]");
+  if (!button) return;
+  if (button.dataset.hold === "true") {
+    event.preventDefault();
+    button.setPointerCapture?.(event.pointerId);
+    startHold(button).catch((error) => log(error.message));
+  }
+});
+
+document.addEventListener("pointerup", (event) => {
+  if (event.target.closest("[data-hold='true']")) {
+    event.preventDefault();
+    stopHold().catch((error) => log(error.message));
+  }
+});
+
+document.addEventListener("pointercancel", () => {
+  stopHold().catch((error) => log(error.message));
+});
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-command]");
+  if (!button || button.dataset.hold === "true") return;
+  const command = button.dataset.command;
+  if (button.classList.contains("speed-button")) {
+    document.querySelectorAll(".speed-button").forEach((item) => item.classList.remove("active"));
+    button.classList.add("active");
+  }
+  sendCommand(command, { label: "sent", stopAfter: command === COMMANDS.STOP ? 0 : undefined }).catch((error) => log(error.message));
+});
+
+els.connect.addEventListener("click", () => {
+  connect().catch((error) => {
+    setStatus("Connection failed");
+    log(error.message);
+    setConnectedUi(false);
+  });
+});
+
+els.disconnect.addEventListener("click", () => {
+  disconnect().catch((error) => log(error.message));
+});
+
+els.customForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const command = els.customInput.value.trim();
+  if (command) sendCommand(command, { label: "custom" }).catch((error) => log(error.message));
+});
+
+window.addEventListener("keydown", (event) => {
+  const map = {
+    ArrowUp: "X1",
+    ArrowDown: "X6",
+    ArrowLeft: "XF",
+    ArrowRight: "XG",
+    " ": "0",
+  };
+  if (!map[event.key] || event.repeat) return;
+  event.preventDefault();
+  sendCommand(map[event.key], { label: "key" }).catch((error) => log(error.message));
+});
+
+window.addEventListener("keyup", (event) => {
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+    event.preventDefault();
+    sendCommand("0", { label: "key stop" }).catch((error) => log(error.message));
+  }
+});
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").catch(() => {});
+}
+
+setConnectedUi(false);
+log("Ready");

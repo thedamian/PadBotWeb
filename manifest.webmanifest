@@ -1,0 +1,17 @@
+{
+  "name": "PadBot Drive",
+  "short_name": "PadBot",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#10131a",
+  "theme_color": "#141824",
+  "icons": [
+    {
+      "src": "./padbot-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
