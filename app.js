@@ -499,14 +499,16 @@ async function initFaceDetector() {
   if (state.vision.detector) return;
   setAutonomyState("Loading face detector");
   try {
-    await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js");
-    await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.1.0/dist/blazeface.min.js");
-    state.vision.detector = await window.blazeface.load();
-    state.vision.detectorType = "blazeface";
-    log("BlazeFace face detector ready");
+    await loadScript("https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js");
+    await window.faceapi.nets.tinyFaceDetector.loadFromUri(
+      "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights",
+    );
+    state.vision.detector = window.faceapi;
+    state.vision.detectorType = "faceapi";
+    log("Face detector ready (TinyFaceDetector)");
     return;
   } catch (error) {
-    log(`BlazeFace failed: ${error.message}`);
+    log(`face-api failed: ${error.message}`);
   }
 
   state.vision.detectorType = "fallback";
@@ -515,17 +517,18 @@ async function initFaceDetector() {
 
 async function detectFaces() {
   if (state.vision.detecting) return state.vision.lastDetectedFaces;
-  if (state.vision.detectorType !== "blazeface") return state.vision.lastDetectedFaces;
+  if (state.vision.detectorType !== "faceapi") return state.vision.lastDetectedFaces;
   const video = els.cameraPreview;
   if (!video.videoWidth || !video.videoHeight) return state.vision.lastDetectedFaces;
   state.vision.detecting = true;
   try {
-    const predictions = await state.vision.detector.estimateFaces(video, false);
-    const faces = predictions.map((p) => ({
-      x: p.topLeft[0],
-      y: p.topLeft[1],
-      width: p.bottomRight[0] - p.topLeft[0],
-      height: p.bottomRight[1] - p.topLeft[1],
+    const options = new window.faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.3, inputSize: 320 });
+    const detections = await window.faceapi.detectAllFaces(video, options);
+    const faces = detections.map((d) => ({
+      x: d.box.x,
+      y: d.box.y,
+      width: d.box.width,
+      height: d.box.height,
     }));
     state.vision.lastDetectedFaces = faces;
     return faces;
