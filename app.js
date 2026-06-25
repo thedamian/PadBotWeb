@@ -1,3 +1,5 @@
+const APP_VERSION = "v4-raw-drive";
+
 const state = {
   device: null,
   server: null,
@@ -313,4 +315,4 @@ if ("serviceWorker" in navigator) {
 }
 
 setConnectedUi(false);
-log("Ready");
+log(`Ready ${APP_VERSION}`);
