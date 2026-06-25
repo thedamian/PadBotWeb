@@ -1,4 +1,4 @@
-const APP_VERSION = "v4-raw-drive";
+const APP_VERSION = "v5-auto-frames";
 
 const state = {
   device: null,
@@ -11,6 +11,8 @@ const state = {
   holdTimer: null,
   lastPointerDriveAt: 0,
   lastCommand: null,
+  lastNotifyText: "",
+  lastNotifyCount: 0,
   speed: 2,
 };
 
@@ -75,11 +77,12 @@ function describeProperties(characteristic) {
   return names.filter((name) => props[name]).join(",") || "none";
 }
 
-function frameCommand(command) {
+function frameCommands(command) {
   const mode = els.protocolMode.value;
-  if (mode === "mn") return `m${command}n`;
-  if (mode === "pq") return `p${command}q`;
-  return command;
+  if (mode === "mn") return [`m${command}n`];
+  if (mode === "pq") return [`p${command}q`];
+  if (mode === "auto") return [command, `m${command}n`, `p${command}q`];
+  return [command];
 }
 
 async function connect() {
@@ -150,7 +153,15 @@ async function connect() {
 function onNotification(event) {
   const bytes = new Uint8Array(event.target.value.buffer);
   const text = new TextDecoder().decode(bytes);
-  log(`notify ${text || Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join(" ")}`);
+  const value = text || Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join(" ");
+  if (value === state.lastNotifyText) {
+    state.lastNotifyCount += 1;
+    return;
+  }
+  if (state.lastNotifyCount > 1) log(`notify repeated ${state.lastNotifyCount}x`);
+  state.lastNotifyText = value;
+  state.lastNotifyCount = 1;
+  log(`notify ${value}`);
 }
 
 function onDisconnected() {
@@ -181,22 +192,24 @@ async function sendCommand(command, options = {}) {
     return;
   }
 
-  const framed = frameCommand(command);
-  const data = new TextEncoder().encode(framed);
+  const framedCommands = frameCommands(command);
   const written = [];
   const failures = [];
-  for (const characteristic of targets) {
-    try {
-      if (characteristic.properties.writeWithoutResponse && characteristic.writeValueWithoutResponse) {
-        await characteristic.writeValueWithoutResponse(data);
-      } else if (characteristic.writeValueWithResponse) {
-        await characteristic.writeValueWithResponse(data);
-      } else {
-        await characteristic.writeValue(data);
+  for (const framed of framedCommands) {
+    const data = new TextEncoder().encode(framed);
+    for (const characteristic of targets) {
+      try {
+        if (characteristic.properties.writeWithoutResponse && characteristic.writeValueWithoutResponse) {
+          await characteristic.writeValueWithoutResponse(data);
+        } else if (characteristic.writeValueWithResponse) {
+          await characteristic.writeValueWithResponse(data);
+        } else {
+          await characteristic.writeValue(data);
+        }
+        written.push(`${framed} -> ${characteristic.uuid} ${getWriteType(characteristic)}`);
+      } catch (error) {
+        failures.push(`${framed} -> ${characteristic.uuid}: ${error.message}`);
       }
-      written.push(`${characteristic.uuid} ${getWriteType(characteristic)}`);
-    } catch (error) {
-      failures.push(`${characteristic.uuid}: ${error.message}`);
     }
   }
 
@@ -205,7 +218,7 @@ async function sendCommand(command, options = {}) {
   }
 
   state.lastCommand = command;
-  log(`${options.label || "sent"} ${framed} via ${written.join(", ")}`);
+  log(`${options.label || "sent"} via ${written.join(", ")}`);
   failures.forEach((failure) => log(`write skipped ${failure}`));
 
   if (options.stopAfter) {

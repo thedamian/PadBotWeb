@@ -47,7 +47,7 @@ It also contains firmware-dependent framing formats:
 - Frame A: `mCOMMANDn`
 - Frame B: `pCOMMANDq`
 
-The disassembly shows wrapping selected around robot-version ranges near `1802-1899` and `1902-1999`. Because the exact robot in front of the browser may vary, the PWA exposes a protocol selector. Try `Auto`, then `Raw`, then the two framed modes if a robot connects but does not move.
+The disassembly shows wrapping selected around robot-version ranges `1802-1899` (`mCOMMANDn`) and `1902-1999` (`pCOMMANDq`). Because the exact robot in front of the browser may vary, the PWA exposes a protocol selector. `Auto` sends raw plus both framed variants for each command.
 
 ## Observed command tokens
 
